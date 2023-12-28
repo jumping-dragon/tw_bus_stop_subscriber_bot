@@ -60,8 +60,6 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             'direction' : context.args[2],
             'station' : context.args[3],
         }
-        # job_removed = await stop_polling_job(str(chat_id), context)
-
         station = await query_tdx(context,
                             city=Data["city"],
                             route=Data["route"],
@@ -104,11 +102,11 @@ async def polling_tdx(context: ContextTypes.DEFAULT_TYPE) -> None:
         if station['StopStatus'] == 0:
             minutes = math.floor(station["EstimateTime"]/60)
             if minutes < 1:
-                await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]} is coming to {job.data["station"]} now!')
+                await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]}->{job.data["last_station"]} is coming to {job.data["station"]} now!')
             elif minutes < 6:
-                await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]} is coming to {job.data["station"]} in {minutes} minutes!')
+                await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]}->{job.data["last_station"]} is coming to {job.data["station"]} in {minutes} minutes!')
             else:
-                await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]} is coming to {job.data["station"]} in {minutes} minutes!')
+                await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]}->{job.data["last_station"]} is coming to {job.data["station"]} in {minutes} minutes!')
         else:
             print("bus still far far away")
 
@@ -133,10 +131,11 @@ async def query_last_station_tdx(context: ContextTypes.DEFAULT_TYPE, city, route
     try:
         session = context.bot_data["session"]
         r = session.get(f"https://tdx.transportdata.tw/api/basic/v2/Bus/Route/City/{city}/{route}?$top=50&$format=JSON").json()[0]
-        if direction == 1:
-            return r["DestinationStopNameZh"]
-        else:
+        pprint.pprint(f'{city},{r["DepartureStopNameZh"]},{r["DestinationStopNameZh"]},{route},{direction}')
+        if direction == 0:
             return r["DepartureStopNameZh"]
+        else:
+            return r["DestinationStopNameZh"]
     except Exception as e:
         print(f'query_last_station_tdx: {e}')
         return 101
