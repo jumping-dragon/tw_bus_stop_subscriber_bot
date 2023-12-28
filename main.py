@@ -143,10 +143,13 @@ async def query_last_station_tdx(context: ContextTypes.DEFAULT_TYPE, city, route
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Removed all subscription if the user changed their mind."""
     job_names = [job.name for job in context.job_queue.jobs()]
-    for job_name in job_names:
-        job_removed = remove_job_if_exists(job_name, context)
-    text = "Removed all Subscription!" if job_removed else "You have no active subscription."
-    await update.message.reply_text(text)
+    if len(job_names) == 0:
+        await update.message.reply_text("You have no active subscription.")
+    else:
+        for job_name in job_names:
+            job_removed = remove_job_if_exists(job_name, context)
+
+        await update.message.reply_text("Removed all Subscription!")
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -203,6 +206,8 @@ def main() -> None:
         application.add_handler(CommandHandler("sub", subscribe))
         application.add_handler(CommandHandler("unsub", unsubscribe))
         # TODO:application.add_handler(CommandHandler("list", list_subscription))
+        # TODO:application.add_handler(CommandHandler("list", list_city))
+        # TODO:application.add_handler(CommandHandler("list", list_direction))
 
         # Run the bot until the user presses Ctrl-C
         application.run_polling(allowed_updates=Update.ALL_TYPES)
