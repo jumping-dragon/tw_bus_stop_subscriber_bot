@@ -83,7 +83,7 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         text = "Subscribed to {} going for {} on station {}".format(Data["route"], Data["last_station"], Data["station"])
         await update.message.reply_text(text)
-    except IndexError:
+    except (TypeError,IndexError):
         await update.effective_message.reply_text("Usage: /subscribe <city> <route> <direction> <station>")
     except ValueError as e:
         remove_job_if_exists(str(chat_id), context)
