@@ -133,9 +133,9 @@ async def query_last_station_tdx(context: ContextTypes.DEFAULT_TYPE, city, route
         r = session.get(f"https://tdx.transportdata.tw/api/basic/v2/Bus/Route/City/{city}/{route}?$top=50&$format=JSON").json()[0]
         pprint.pprint(f'{city},{r["DepartureStopNameZh"]},{r["DestinationStopNameZh"]},{route},{direction}')
         if direction == 0:
-            return r["DepartureStopNameZh"]
-        else:
             return r["DestinationStopNameZh"]
+        else:
+            return r["DepartureStopNameZh"]
     except Exception as e:
         print(f'query_last_station_tdx: {e}')
         return 101
