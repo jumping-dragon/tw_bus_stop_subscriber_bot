@@ -179,9 +179,6 @@ def main() -> None:
         client_secret = os.environ.get('TDX_CLIENT_SECRET')
         telegram_secret = os.environ.get('TELEGRAM_SECRET')
 
-        # Authenticate TDX
-        tdx_token = authenticate_tdx(client_id=client_id, client_secret=client_secret)
-
         # TODO: add persistence
 
         # Authenticate Telegram
@@ -193,10 +190,19 @@ def main() -> None:
     
     else:
         # save bearer token
-        Headers = { 'authorization': 'Bearer {}'.format(tdx_token) }
         s = requests.Session()
-        s.headers.update(Headers)
         application.bot_data["session"] = s
+
+        # Authenticate TDX
+        def refresh_tdx_token(r, *args, **kwargs):
+            if r.status_code == 401:
+                tdx_token = authenticate_tdx(client_id=client_id, client_secret=client_secret)
+                Headers = { 'authorization': 'Bearer {}'.format(tdx_token) }
+                s.headers.update(Headers)
+                r.request.headers["Authorization"] = s.headers["Authorization"]
+                return s.send(r.request)
+
+        s.hooks['response'].append(refresh_tdx_token)
 
         # on different commands - answer in Telegram
         application.add_handler(CommandHandler("start", start))
@@ -217,4 +223,3 @@ if __name__ == "__main__":
     main()
 
 # TODO: Start documentation
-# TODO: Bearer token expired reauth
