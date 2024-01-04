@@ -15,6 +15,7 @@ Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
 import math
+from operator import itemgetter
 import pprint
 import os
 import logging
@@ -151,6 +152,73 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
         await update.message.reply_text("Removed all Subscription!")
 
+async def subscribe_closest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Check for next closest bus."""
+    chat_id = update.message.chat_id
+    city = context.args[0]
+    route = context.args[1]
+    direction = context.args[2]
+    station = context.args[3]
+    try:
+        session = context.bot_data["session"]
+        filtere = "Direction eq {}".format(direction)
+        r = session.get(f"https://tdx.transportdata.tw/api/basic/v2/Bus/DisplayStopOfRoute/City/{city}/{route}?$top=50&$filter={filtere}&$format=JSON").json()[0]
+        stop = next(stop for stop in r["Stops"] if stop["StopName"]["Zh_tw"] == station)
+
+        Data = {
+            'city': city,
+            'route': route,
+            'direction': direction,
+            'stop': stop
+        }
+
+        last_station = await query_last_station_tdx(context,
+                            city=Data["city"],
+                            route=Data["route"],
+                            direction=Data["direction"]
+                            )
+        
+        Data['last_station'] = last_station
+        
+        sub_id = [city,route,direction,station]
+        pprint.pprint(stop)
+        context.job_queue.run_repeating(polling_closest, 60, chat_id=chat_id, name='-'.join(sub_id + [str(chat_id)]), data=Data)
+
+        text = "Subscribed (C) to {} going for {} on station {}".format(route, last_station, station)
+        # pprint.pprint(a)
+    except Exception as e:
+        print(f'subscribe_closest: {e}')
+        return 400
+    else:
+        await update.message.reply_text(text)
+
+async def polling_closest(context: ContextTypes.DEFAULT_TYPE) -> None:
+    job = context.job
+    
+    try:
+        city, route, direction, stop, last_station = itemgetter('city', 'route', 'direction', 'stop', 'last_station')(job.data)
+        session = context.bot_data["session"]
+        filtere = "Direction eq {}".format(direction)
+        buses = session.get(f"https://tdx.transportdata.tw/api/basic/v2/Bus/RealTimeNearStop/City/{city}/{route}?$top=50&$filter={filtere}&$format=JSON").json()
+        upcoming_bus_stop_sequences = [bus["StopSequence"] for bus in buses if bus["StopSequence"] < stop["StopSequence"]]
+        pprint.pprint(upcoming_bus_stop_sequences)
+        if len(upcoming_bus_stop_sequences) > 0:
+            next_upcoming_bus = max(upcoming_bus_stop_sequences)
+            station_diff = stop["StopSequence"] - next_upcoming_bus
+            if station_diff < 5:
+                await context.bot.send_message(job.chat_id, text=f'Bus {route}->{last_station} is coming to {stop["StopName"]["Zh_tw"]} by {station_diff} station!')
+            # elif minutes < 6:
+            #     await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]}->{job.data["last_station"]} is coming to {job.data["station"]} in {minutes} minutes!')
+            # else:
+            #     await context.bot.send_message(job.chat_id, text=f'Bus {job.data["route"]}->{job.data["last_station"]} is coming to {job.data["station"]} in {minutes} minutes!')
+        else:
+            print("bus still far far away")
+
+
+    except Exception as e:
+        print(f'polling_closest: {e}')
+        return 500
+
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Remove job with given name. Returns whether job was removed."""
     current_jobs = context.job_queue.get_jobs_by_name(name)
@@ -211,6 +279,7 @@ def main() -> None:
         application.add_handler(CommandHandler("unsubscribe", unsubscribe))
         application.add_handler(CommandHandler("sub", subscribe))
         application.add_handler(CommandHandler("unsub", unsubscribe))
+        application.add_handler(CommandHandler("subc", subscribe_closest))
         # TODO:application.add_handler(CommandHandler("list", list_subscription))
         # TODO:application.add_handler(CommandHandler("list", list_city))
         # TODO:application.add_handler(CommandHandler("list", list_direction))
